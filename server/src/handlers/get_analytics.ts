@@ -1,52 +1,41 @@
+import { db } from '../db';
+import { analyticsTable } from '../db/schema';
 import { type Analytics, type GetAnalyticsQuery } from '../schema';
+import { eq, and, gte, lte, SQL } from 'drizzle-orm';
 
-export async function getAnalytics(query: GetAnalyticsQuery): Promise<Analytics[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching analytics data for institutions.
-    // This powers the "Impact Metrics & Social Proof" section of the landing page.
-    // Should return metrics like papers stored, downloads, active users, time saved, etc.
-    // Should support filtering by date ranges and metric types.
-    
-    return Promise.resolve([
-        {
-            id: 1,
-            institution_id: query.institution_id,
-            metric_type: "papers_uploaded",
-            value: 1250,
-            date: new Date('2023-12-01'),
-            created_at: new Date()
-        },
-        {
-            id: 2,
-            institution_id: query.institution_id,
-            metric_type: "total_downloads",
-            value: 8750,
-            date: new Date('2023-12-01'),
-            created_at: new Date()
-        },
-        {
-            id: 3,
-            institution_id: query.institution_id,
-            metric_type: "active_users",
-            value: 450,
-            date: new Date('2023-12-01'),
-            created_at: new Date()
-        },
-        {
-            id: 4,
-            institution_id: query.institution_id,
-            metric_type: "time_saved_hours",
-            value: 2100,
-            date: new Date('2023-12-01'),
-            created_at: new Date()
-        },
-        {
-            id: 5,
-            institution_id: query.institution_id,
-            metric_type: "collaboration_sessions",
-            value: 320,
-            date: new Date('2023-12-01'),
-            created_at: new Date()
-        }
-    ] as Analytics[]);
-}
+export const getAnalytics = async (query: GetAnalyticsQuery): Promise<Analytics[]> => {
+  try {
+    // Build conditions array
+    const conditions: SQL<unknown>[] = [];
+
+    // Always filter by institution_id (required)
+    conditions.push(eq(analyticsTable.institution_id, query.institution_id));
+
+    // Filter by metric_type if provided
+    if (query.metric_type) {
+      conditions.push(eq(analyticsTable.metric_type, query.metric_type));
+    }
+
+    // Filter by date range if provided
+    if (query.start_date) {
+      const startDate = new Date(query.start_date);
+      conditions.push(gte(analyticsTable.date, startDate));
+    }
+
+    if (query.end_date) {
+      const endDate = new Date(query.end_date);
+      conditions.push(lte(analyticsTable.date, endDate));
+    }
+
+    // Build and execute query
+    const results = await db.select()
+      .from(analyticsTable)
+      .where(conditions.length === 1 ? conditions[0] : and(...conditions))
+      .execute();
+
+    return results;
+  } catch (error) {
+    console.error('Analytics retrieval failed:', error);
+    throw error;
+  }
+};

@@ -1,33 +1,46 @@
+import { db } from '../db';
+import { institutionsTable } from '../db/schema';
 import { type Institution, type GetInstitutionsQuery } from '../schema';
+import { ilike, and, type SQL } from 'drizzle-orm';
 
 export async function getInstitutions(query: GetInstitutionsQuery): Promise<Institution[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching institutions with optional filtering and pagination.
-    // Should support search by name, filter by type, and implement pagination with limit/offset.
-    // For the premium landing page, this would power the "Browse Institutions" feature.
-    
-    return Promise.resolve([
-        {
-            id: 1,
-            name: "Harvard University",
-            type: "university",
-            location: "Cambridge, MA",
-            established_year: 1636,
-            total_students: 23000,
-            total_faculty: 2400,
-            created_at: new Date(),
-            updated_at: new Date()
-        },
-        {
-            id: 2,
-            name: "Stanford University",
-            type: "university", 
-            location: "Stanford, CA",
-            established_year: 1885,
-            total_students: 17000,
-            total_faculty: 2200,
-            created_at: new Date(),
-            updated_at: new Date()
-        }
-    ] as Institution[]);
+  try {
+    // Collect conditions for filtering
+    const conditions: SQL<unknown>[] = [];
+
+    // Apply search filter if provided
+    if (query.search) {
+      conditions.push(ilike(institutionsTable.name, `%${query.search}%`));
+    }
+
+    // Apply type filter if provided
+    if (query.type) {
+      conditions.push(ilike(institutionsTable.type, query.type));
+    }
+
+    // Build and execute query in one chain
+    if (conditions.length > 0) {
+      const results = await db.select()
+        .from(institutionsTable)
+        .where(conditions.length === 1 ? conditions[0] : and(...conditions))
+        .orderBy(institutionsTable.name)
+        .limit(query.limit)
+        .offset(query.offset)
+        .execute();
+      
+      return results;
+    } else {
+      const results = await db.select()
+        .from(institutionsTable)
+        .orderBy(institutionsTable.name)
+        .limit(query.limit)
+        .offset(query.offset)
+        .execute();
+      
+      return results;
+    }
+  } catch (error) {
+    console.error('Failed to fetch institutions:', error);
+    throw error;
+  }
 }

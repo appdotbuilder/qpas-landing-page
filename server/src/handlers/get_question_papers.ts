@@ -1,46 +1,64 @@
+import { db } from '../db';
+import { questionPapersTable } from '../db/schema';
 import { type QuestionPaper, type GetQuestionPapersQuery } from '../schema';
+import { eq, and, ilike, SQL } from 'drizzle-orm';
 
-export async function getQuestionPapers(query: GetQuestionPapersQuery): Promise<QuestionPaper[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching question papers with advanced filtering capabilities.
-    // Should support search by title, filter by institution/subject/year/type, pagination.
-    // This powers the core search and discovery functionality for the QPAS platform.
-    // For the landing page, this would showcase the search and filter demonstrations.
-    
-    return Promise.resolve([
-        {
-            id: 1,
-            title: "Computer Science Final Exam 2023",
-            subject_id: 1,
-            institution_id: 1,
-            uploaded_by: 1,
-            exam_year: 2023,
-            exam_type: "final",
-            difficulty_level: "advanced",
-            file_url: "https://example.com/papers/cs-final-2023.pdf",
-            file_size: 2048000, // 2MB in bytes
-            download_count: 150,
-            is_public: true,
-            tags: ["algorithms", "data-structures", "programming"],
-            created_at: new Date(),
-            updated_at: new Date()
-        },
-        {
-            id: 2,
-            title: "Mathematics Midterm Exam 2023",
-            subject_id: 2,
-            institution_id: 1,
-            uploaded_by: 2,
-            exam_year: 2023,
-            exam_type: "midterm",
-            difficulty_level: "intermediate",
-            file_url: "https://example.com/papers/math-midterm-2023.pdf",
-            file_size: 1536000, // 1.5MB in bytes
-            download_count: 89,
-            is_public: true,
-            tags: ["calculus", "algebra", "geometry"],
-            created_at: new Date(),
-            updated_at: new Date()
-        }
-    ] as QuestionPaper[]);
-}
+export const getQuestionPapers = async (input: GetQuestionPapersQuery): Promise<QuestionPaper[]> => {
+  try {
+    // Build conditions array for filters
+    const conditions: SQL<unknown>[] = [];
+
+    // Filter by institution
+    if (input.institution_id !== undefined) {
+      conditions.push(eq(questionPapersTable.institution_id, input.institution_id));
+    }
+
+    // Filter by subject
+    if (input.subject_id !== undefined) {
+      conditions.push(eq(questionPapersTable.subject_id, input.subject_id));
+    }
+
+    // Filter by exam year
+    if (input.exam_year !== undefined) {
+      conditions.push(eq(questionPapersTable.exam_year, input.exam_year));
+    }
+
+    // Filter by exam type
+    if (input.exam_type !== undefined) {
+      conditions.push(eq(questionPapersTable.exam_type, input.exam_type));
+    }
+
+    // Filter by public status
+    if (input.is_public !== undefined) {
+      conditions.push(eq(questionPapersTable.is_public, input.is_public));
+    }
+
+    // Text search in title (case-insensitive)
+    if (input.search !== undefined && input.search.trim() !== '') {
+      conditions.push(ilike(questionPapersTable.title, `%${input.search.trim()}%`));
+    }
+
+    // Execute query with proper typing
+    const results = conditions.length > 0
+      ? await db.select()
+          .from(questionPapersTable)
+          .where(conditions.length === 1 ? conditions[0] : and(...conditions))
+          .limit(input.limit)
+          .offset(input.offset)
+          .execute()
+      : await db.select()
+          .from(questionPapersTable)
+          .limit(input.limit)
+          .offset(input.offset)
+          .execute();
+
+    // Convert tags from JSONB to array and ensure proper typing
+    return results.map(paper => ({
+      ...paper,
+      tags: paper.tags as string[] | null
+    }));
+  } catch (error) {
+    console.error('Failed to get question papers:', error);
+    throw error;
+  }
+};
